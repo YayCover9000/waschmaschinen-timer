@@ -220,6 +220,8 @@
   .step-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .step-meta input[type="number"] { width: 3.2rem; padding: 8px 4px; }
   .step-meta select { width: auto; flex: 1; min-width: 6rem; padding: 8px; font-size: 0.85rem; }
+  .step-range { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+  .step-range span { color: var(--muted); font-size: 0.78rem; }
   .btn-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
   .btn-row button.primary {
     background: var(--accent);
@@ -403,11 +405,11 @@ Backen:
 - 40 Min abkühlen lassen`,
       steps: [
         { name: 'Vorteig ansetzen', hours: 0, minutes: 20, kind: 'active' },
-        { name: 'Vorteig reifen', hours: 14, minutes: 0, kind: 'passive' },
+        { name: 'Vorteig reifen', hours: 12, minutes: 0, hoursMax: 16, minutesMax: 0, kind: 'passive' },
         { name: 'Hauptteig mischen', hours: 0, minutes: 20, kind: 'active' },
-        { name: 'Teig garen', hours: 3, minutes: 30, kind: 'passive' },
+        { name: 'Teig garen', hours: 2, minutes: 0, hoursMax: 5, minutesMax: 0, kind: 'passive' },
         { name: 'Ofen vorheizen', hours: 0, minutes: 30, kind: 'active' },
-        { name: 'Backen im Dutch Oven', hours: 1, minutes: 35, kind: 'active' },
+        { name: 'Backen im Dutch Oven', hours: 1, minutes: 30, hoursMax: 1, minutesMax: 40, kind: 'active' },
         { name: 'Abkühlen', hours: 0, minutes: 40, kind: 'passive' },
       ],
     },
@@ -510,16 +512,25 @@ Backen:
     return (Number(step.hours) || 0) * 60 + (Number(step.minutes) || 0);
   }
 
+  function stepDurationMaxMinutes(step) {
+    const max = (Number(step.hoursMax) || 0) * 60 + (Number(step.minutesMax) || 0);
+    const min = stepDurationMinutes(step);
+    return max > min ? max : min;
+  }
+
+  function hasStepRange(step) {
+    return stepDurationMaxMinutes(step) > stepDurationMinutes(step);
+  }
+
   function cloneTemplate(t) {
     return { ...t, steps: t.steps.map((s) => ({ ...s })), notes: t.notes || '' };
   }
 
   function mergeDefaultTemplates(templates) {
-    const merged = templates.map(cloneTemplate);
-    DEFAULT_TEMPLATES.forEach((def) => {
-      if (!merged.some((t) => t.id === def.id)) merged.unshift(cloneTemplate(def));
-    });
-    return merged;
+    const custom = (templates || [])
+      .filter((t) => !DEFAULT_TEMPLATES.some((d) => d.id === t.id))
+      .map(cloneTemplate);
+    return [...DEFAULT_TEMPLATES.map(cloneTemplate), ...custom];
   }
 
   function loadState() {
@@ -574,21 +585,47 @@ Backen:
     if (direction === 'forward') {
       let t = new Date(anchor);
       for (const step of steps) {
-        const dur = stepDurationMinutes(step);
+        const durMin = stepDurationMinutes(step);
+        const durMax = stepDurationMaxMinutes(step);
         const start = new Date(t);
-        const end = new Date(t.getTime() + dur * 60000);
-        timeline.push({ ...step, start, end, durationMinutes: dur });
-        t = end;
+        const endMin = new Date(start.getTime() + durMin * 60000);
+        const endMax = new Date(start.getTime() + durMax * 60000);
+        timeline.push({
+          ...step,
+          start,
+          end: endMax,
+          startMin: start,
+          startMax: start,
+          endMin,
+          endMax,
+          durationMinutes: durMin,
+          durationMaxMinutes: durMax,
+          hasRange: durMax > durMin,
+        });
+        t = endMax;
       }
     } else {
       let t = new Date(anchor);
       for (let i = steps.length - 1; i >= 0; i--) {
         const step = steps[i];
-        const dur = stepDurationMinutes(step);
+        const durMin = stepDurationMinutes(step);
+        const durMax = stepDurationMaxMinutes(step);
         const end = new Date(t);
-        const start = new Date(t.getTime() - dur * 60000);
-        timeline.push({ ...step, start, end, durationMinutes: dur });
-        t = start;
+        const startMin = new Date(end.getTime() - durMax * 60000);
+        const startMax = new Date(end.getTime() - durMin * 60000);
+        timeline.push({
+          ...step,
+          start: startMin,
+          end,
+          startMin,
+          startMax,
+          endMin: end,
+          endMax: end,
+          durationMinutes: durMin,
+          durationMaxMinutes: durMax,
+          hasRange: durMax > durMin,
+        });
+        t = startMin;
       }
       timeline.reverse();
     }
@@ -602,8 +639,10 @@ Backen:
     const violations = [];
     timeline.forEach((item, idx) => {
       if (item.kind !== 'active') return;
-      const startBad = isOutsideWindow(item.start, fromMin, toMin);
-      const endBad = isOutsideWindow(item.end, fromMin, toMin);
+      const startBad = isOutsideWindow(item.startMin, fromMin, toMin)
+        || isOutsideWindow(item.startMax, fromMin, toMin);
+      const endBad = isOutsideWindow(item.endMin, fromMin, toMin)
+        || isOutsideWindow(item.endMax, fromMin, toMin);
       if (startBad || endBad) {
         violations.push({ idx, item, startBad, endBad });
       }
@@ -617,6 +656,25 @@ Backen:
     if (h && m) return `${h} Std ${pad(m)} Min`;
     if (h) return `${h} Std`;
     return `${m} Min`;
+  }
+
+  function formatDurationRange(step) {
+    const min = stepDurationMinutes(step);
+    const max = stepDurationMaxMinutes(step);
+    if (!hasStepRange(step)) return formatDuration(min);
+    return `${formatDuration(min)} – ${formatDuration(max)}`;
+  }
+
+  function formatTimeRange(from, to, refDate) {
+    if (from.getTime() === to.getTime()) return `${formatHM(from)}${dayLabel(from, refDate)}`;
+    return `${formatHM(from)}–${formatHM(to)}${dayLabel(to, refDate)}`;
+  }
+
+  function totalDurationRange(steps) {
+    const min = steps.reduce((sum, step) => sum + stepDurationMinutes(step), 0);
+    const max = steps.reduce((sum, step) => sum + stepDurationMaxMinutes(step), 0);
+    if (max > min) return `${formatDuration(min)} – ${formatDuration(max)}`;
+    return formatDuration(min);
   }
 
   function findShiftSuggestions(steps, baseAnchor, direction, settings) {
@@ -655,7 +713,14 @@ Backen:
             <option value="active" ${step.kind === 'active' ? 'selected' : ''}>aktiv</option>
             <option value="passive" ${step.kind === 'passive' ? 'selected' : ''}>passiv</option>
           </select>`}
-        </div>`;
+        </div>
+        ${isWasherMode() ? '' : `<div class="step-meta step-range">
+          <span>bis</span>
+          <input type="number" min="0" max="99" value="${Number(step.hoursMax) || 0}" aria-label="Maximal Stunden" data-field="hoursMax" data-idx="${idx}" />
+          <span>Std</span>
+          <input type="number" min="0" max="59" value="${Number(step.minutesMax) || 0}" aria-label="Maximal Minuten" data-field="minutesMax" data-idx="${idx}" />
+          <span>Min</span>
+        </div>`}`;
       stepListEl.appendChild(div);
     });
 
@@ -693,6 +758,8 @@ Backen:
     if (field === 'name') state.steps[idx].name = el.value;
     else if (field === 'hours') state.steps[idx].hours = Math.max(0, parseInt(el.value, 10) || 0);
     else if (field === 'minutes') state.steps[idx].minutes = Math.max(0, Math.min(59, parseInt(el.value, 10) || 0));
+    else if (field === 'hoursMax') state.steps[idx].hoursMax = Math.max(0, parseInt(el.value, 10) || 0);
+    else if (field === 'minutesMax') state.steps[idx].minutesMax = Math.max(0, Math.min(59, parseInt(el.value, 10) || 0));
     else if (field === 'kind') state.steps[idx].kind = el.value;
     saveState();
     currentShiftMinutes = 0;
@@ -889,11 +956,11 @@ Backen:
     if (calcMode === 'forward') {
       multiEyebrow.textContent = 'Fertig um';
       multiOutput.textContent = formatHMWithDay(finish, now);
-      multiDetail.innerHTML = `Start: <strong>${formatHMWithDay(start, now)}</strong>, Gesamtdauer <strong>${formatDuration(steps.reduce((s, st) => s + stepDurationMinutes(st), 0))}</strong>.`;
+      multiDetail.innerHTML = `Start: <strong>${formatHMWithDay(start, now)}</strong>, Gesamtdauer <strong>${totalDurationRange(steps)}</strong>.`;
     } else {
       multiEyebrow.textContent = 'Start um';
       multiOutput.textContent = formatHMWithDay(start, now);
-      multiDetail.innerHTML = `Fertig: <strong>${formatHMWithDay(finish, now)}</strong> (Ziel), Gesamtdauer <strong>${formatDuration(steps.reduce((s, st) => s + stepDurationMinutes(st), 0))}</strong>.`;
+      multiDetail.innerHTML = `Fertig: <strong>${formatHMWithDay(finish, now)}</strong> (Ziel), Gesamtdauer <strong>${totalDurationRange(steps)}</strong>.`;
     }
 
     renderTimeline(timeline, now, violations);
@@ -959,12 +1026,18 @@ Backen:
     timelineEl.innerHTML = timeline.map((item, idx) => {
       const passive = item.kind === 'passive';
       const flagged = badIdx.has(idx);
-      const dur = formatDuration(item.durationMinutes);
+      const dur = item.hasRange ? formatDurationRange(item) : formatDuration(item.durationMinutes);
       const kindLabel = passive ? 'passiv' : 'aktiv';
+      const startLabel = item.hasRange
+        ? formatTimeRange(item.startMin, item.startMax, refDate)
+        : `${formatHM(item.start)}${dayLabel(item.start, refDate)}`;
+      const endLabel = item.hasRange
+        ? formatTimeRange(item.endMin, item.endMax, refDate)
+        : `${formatHM(item.end)}${dayLabel(item.end, refDate)}`;
       return `<div class="timeline-item ${passive ? 'passive' : ''} ${flagged ? 'flagged' : ''}">
-        <div class="timeline-time">${formatHM(item.start)}<span class="day-tag">${dayLabel(item.start, refDate)}</span></div>
+        <div class="timeline-time">${startLabel}</div>
         <div class="timeline-name">${escapeAttr(item.name)}</div>
-        <div class="timeline-meta">${dur}, ${kindLabel} &rarr; ${formatHM(item.end)}${dayLabel(item.end, refDate)}</div>
+        <div class="timeline-meta">${dur}, ${kindLabel} &rarr; ${endLabel}</div>
       </div>`;
     }).join('');
   }
