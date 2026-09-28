@@ -116,6 +116,19 @@
   }
   input[type="number"] { text-align: center; }
   input[type="checkbox"] { width: auto; margin-right: 8px; }
+  textarea {
+    width: 100%;
+    min-height: 9rem;
+    padding: 11px;
+    font-size: 0.88rem;
+    line-height: 1.55;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+    resize: vertical;
+    font-family: inherit;
+  }
   .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .presets button, .btn-row button, .shift-actions button {
     flex: 1 1 auto;
@@ -324,6 +337,12 @@
 
   <div class="hint" id="washer-hint" hidden>Die Startzeitvorwahl läuft in ganzen Stunden ab jetzt. Es wird abgerundet, damit die Wäsche spätestens zur gewünschten Zeit fertig ist.</div>
 
+  <div class="card" id="notes-card">
+    <div class="card-title">Notizen</div>
+    <textarea id="recipe-notes" aria-label="Rezeptnotizen" placeholder="Zutaten, Temperaturen, Hinweise zum Rezept …"></textarea>
+    <p class="hint" style="text-align:left;margin-top:8px">Wird mit der Vorlage gespeichert, wenn du „Als Vorlage speichern" klickst.</p>
+  </div>
+
   <!-- Settings -->
   <div class="card">
     <div class="settings-toggle" id="settings-toggle" tabindex="0" role="button" aria-expanded="false">
@@ -360,8 +379,42 @@
       ],
     },
     {
+      id: 'roggen-sauerteig',
+      name: 'Roggen-Sauerteig',
+      notes: `Vor dem Start: Starter muss innerhalb der letzten 12 Stunden gefüttert worden sein – sonst vorher füttern.
+
+Vorteig (am Abend vor dem Backtag):
+- 350 g Roggenvollkornmehl
+- 385 g Wasser
+- 80 g aktiver Sauerteig
+- 7 g Salz
+In große Schüssel geben, 12–16 Std reifen lassen.
+
+Hauptteig (am Backtag):
+- Vorteig
+- 320 g Roggenmehl
+- 210 g Wasser
+- 7 g Salz
+Zusammen mischen bis klebriger Teig, zugedeckt 2–5 Std bei Raumtemperatur garen.
+
+Backen:
+- Dutch Oven 30 Min auf 220 °C vorheizen
+- Auf 170 °C runter, 90–100 Min backen
+- 40 Min abkühlen lassen`,
+      steps: [
+        { name: 'Vorteig ansetzen', hours: 0, minutes: 20, kind: 'active' },
+        { name: 'Vorteig reifen', hours: 14, minutes: 0, kind: 'passive' },
+        { name: 'Hauptteig mischen', hours: 0, minutes: 20, kind: 'active' },
+        { name: 'Teig garen', hours: 3, minutes: 30, kind: 'passive' },
+        { name: 'Ofen vorheizen', hours: 0, minutes: 30, kind: 'active' },
+        { name: 'Backen im Dutch Oven', hours: 1, minutes: 35, kind: 'active' },
+        { name: 'Abkühlen', hours: 0, minutes: 40, kind: 'passive' },
+      ],
+    },
+    {
       id: 'sauerteig-dunkles-brot',
       name: 'Sauerteig dunkles Brot',
+      notes: '',
       steps: [
         { name: 'Autolyse / Mix', hours: 0, minutes: 30, kind: 'active' },
         { name: 'Bulk Ferment', hours: 5, minutes: 0, kind: 'passive' },
@@ -424,6 +477,7 @@
   const activeHoursEnabledEl = document.getElementById('active-hours-enabled');
   const activeFromEl = document.getElementById('active-from');
   const activeToEl = document.getElementById('active-to');
+  const recipeNotesEl = document.getElementById('recipe-notes');
 
   let state = loadState();
   let calcMode = state.calcMode || 'forward';
@@ -457,7 +511,7 @@
   }
 
   function cloneTemplate(t) {
-    return { ...t, steps: t.steps.map((s) => ({ ...s })) };
+    return { ...t, steps: t.steps.map((s) => ({ ...s })), notes: t.notes || '' };
   }
 
   function mergeDefaultTemplates(templates) {
@@ -476,12 +530,15 @@
         parsed.templates = mergeDefaultTemplates(parsed.templates || []);
         if (!parsed.workflowMode) parsed.workflowMode = 'multi';
         if (!parsed.activeTemplateId) parsed.activeTemplateId = parsed.templates[0]?.id || 'waschmaschine';
+        if (parsed.notes === undefined) parsed.notes = '';
+        parsed.templates.forEach((t) => { if (t.notes === undefined) t.notes = ''; });
         return parsed;
       }
     } catch (_) { /* ignore */ }
     const templates = DEFAULT_TEMPLATES.map(cloneTemplate);
     return {
       steps: templates[0].steps.map((s) => ({ ...s })),
+      notes: templates[0].notes || '',
       templates,
       workflowMode: templates[0].mode || 'multi',
       activeTemplateId: templates[0].id,
@@ -681,10 +738,15 @@
     anchorBackward.hidden = !washer && calcMode !== 'backward';
   }
 
+  function renderNotes() {
+    recipeNotesEl.value = state.notes || '';
+  }
+
   function loadTemplate(id) {
     const tpl = state.templates.find((t) => t.id === id);
     if (!tpl) return;
     state.steps = tpl.steps.map((s) => ({ ...s }));
+    state.notes = tpl.notes || '';
     state.workflowMode = tpl.mode === 'washer' ? 'washer' : 'multi';
     state.activeTemplateId = tpl.id;
     if (state.workflowMode === 'washer') calcMode = 'backward';
@@ -693,6 +755,7 @@
     renderBasicPresets();
     renderTemplates();
     renderSteps();
+    renderNotes();
     updateWasherUi();
     switchCalcMode(calcMode);
   }
@@ -957,6 +1020,7 @@
       id,
       name: name.trim(),
       steps: state.steps.map((s) => ({ ...s })),
+      notes: state.notes || '',
     };
     if (isWasherMode()) entry.mode = 'washer';
     if (existing >= 0) {
@@ -1004,6 +1068,11 @@
     });
   });
 
+  recipeNotesEl.addEventListener('input', () => {
+    state.notes = recipeNotesEl.value;
+    saveState();
+  });
+
   activeHoursEnabledEl.checked = state.settings.activeHoursEnabled;
   activeFromEl.value = state.settings.activeFrom;
   activeToEl.value = state.settings.activeTo;
@@ -1011,6 +1080,7 @@
   renderTemplates();
   renderBasicPresets();
   renderSteps();
+  renderNotes();
   updateWasherUi();
   switchCalcMode(calcMode);
 
