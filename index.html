@@ -340,10 +340,9 @@
   <div class="card" id="calendar-card" hidden>
     <div class="card-title">Kalender</div>
     <div class="btn-row">
-      <button type="button" id="export-google" class="primary">In Google Kalender übernehmen</button>
-      <button type="button" id="export-ics">Als .ics-Datei</button>
+      <button type="button" id="export-ics" class="primary">Kalenderdatei (.ics) herunterladen</button>
     </div>
-    <p class="hint" id="calendar-hint" style="text-align:left;margin-top:8px">Legt jeden Schritt als eigenen Termin an. Google: einmalig Client-ID in den Einstellungen eintragen.</p>
+    <p class="hint" id="calendar-hint" style="text-align:left;margin-top:8px">Jeder Schritt wird ein Termin. Google Kalender: Einstellungen → Importieren und Exportieren → Datei wählen.</p>
     <div class="warning" id="calendar-status" hidden></div>
   </div>
 
@@ -375,14 +374,10 @@
         <input type="time" id="active-to" value="22:00" />
       </div>
       <p class="hint" style="text-align:left;margin-top:10px">Gilt nur für Schritte vom Typ „aktiv“. Liegen Start oder Ende außerhalb des Fensters, erscheint eine Warnung mit Verschiebe-Vorschlägen.</p>
-      <label for="google-client-id" style="margin-top:14px">Google OAuth Client-ID</label>
-      <input type="text" id="google-client-id" placeholder="123456789.apps.googleusercontent.com" autocomplete="off" />
-      <p class="hint" style="text-align:left;margin-top:8px">Für „In Google Kalender übernehmen". Google Cloud Console: Calendar API aktivieren, OAuth-Client (Web) mit dieser URL als autorisiertem JavaScript-Ursprung.</p>
     </div>
   </div>
 </main>
 
-<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script>
   const STORAGE_KEY = 'schrittplaner-v2';
   const DEFAULT_TEMPLATES = [
@@ -515,17 +510,13 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
   const activeToEl = document.getElementById('active-to');
   const recipeNotesEl = document.getElementById('recipe-notes');
   const calendarCardEl = document.getElementById('calendar-card');
-  const exportGoogleBtn = document.getElementById('export-google');
   const exportIcsBtn = document.getElementById('export-ics');
   const calendarStatusEl = document.getElementById('calendar-status');
-  const googleClientIdEl = document.getElementById('google-client-id');
 
   let state = loadState();
   let calcMode = state.calcMode || 'forward';
   let currentShiftMinutes = 0;
   let lastExportPlan = null;
-  let googleTokenClient = null;
-  let googleAccessToken = null;
 
   function isWasherMode() {
     return state.workflowMode === 'washer';
@@ -585,7 +576,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
         if (!parsed.activeTemplateId) parsed.activeTemplateId = parsed.templates[0]?.id || 'waschmaschine';
         if (parsed.notes === undefined) parsed.notes = '';
         parsed.templates.forEach((t) => { if (t.notes === undefined) t.notes = ''; });
-        if (!parsed.settings.googleClientId) parsed.settings.googleClientId = '';
         return parsed;
       }
     } catch (_) { /* ignore */ }
@@ -597,7 +587,7 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
       workflowMode: templates[0].mode || 'multi',
       activeTemplateId: templates[0].id,
       calcMode: templates[0].mode === 'washer' ? 'backward' : 'forward',
-      settings: { activeHoursEnabled: false, activeFrom: '07:00', activeTo: '22:00', googleClientId: '' },
+      settings: { activeHoursEnabled: false, activeFrom: '07:00', activeTo: '22:00' },
     };
   }
 
@@ -725,14 +715,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
     return tpl?.name || 'Schrittplaner';
   }
 
-  function getTimeZone() {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Berlin';
-  }
-
-  function formatGoogleDateTime(date) {
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-  }
-
   function formatICSDateTime(date) {
     return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
   }
@@ -814,103 +796,7 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
     a.download = `schrittplaner-${slug}.ics`;
     a.click();
     URL.revokeObjectURL(a.href);
-    showCalendarStatus(`${plan.events.length} Termine als .ics-Datei gespeichert. In Google Kalender: Einstellungen → Importieren und Exportieren → Importieren.`);
-  }
-
-  function initGoogleTokenClient() {
-    const clientId = state.settings.googleClientId?.trim();
-    if (!clientId || !window.google?.accounts?.oauth2) return false;
-    googleTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/calendar.events',
-      callback: (response) => {
-        if (response.error) {
-          showCalendarStatus(`Google-Anmeldung fehlgeschlagen: ${response.error}`, true);
-          return;
-        }
-        googleAccessToken = response.access_token;
-        createGoogleCalendarEvents(lastExportPlan);
-      },
-    });
-    return true;
-  }
-
-  async function createGoogleCalendarEvents(plan) {
-    if (!plan?.events?.length || !googleAccessToken) return;
-    exportGoogleBtn.disabled = true;
-    const tz = getTimeZone();
-    let created = 0;
-    const errors = [];
-
-    for (const ev of plan.events) {
-      const body = {
-        summary: `${plan.recipeName}: ${ev.name}`,
-        description: buildEventDescription(ev, plan),
-        start: { dateTime: formatGoogleDateTime(ev.start), timeZone: tz },
-        end: { dateTime: formatGoogleDateTime(ev.end), timeZone: tz },
-      };
-      if (ev.kind === 'active') {
-        body.reminders = {
-          useDefault: false,
-          overrides: [
-            { method: 'popup', minutes: 15 },
-            { method: 'popup', minutes: 0 },
-          ],
-        };
-      }
-      try {
-        const res = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(body),
-        });
-        if (res.ok) {
-          created += 1;
-        } else {
-          const err = await res.json().catch(() => ({}));
-          errors.push(err.error?.message || res.statusText);
-        }
-      } catch (e) {
-        errors.push(e.message);
-      }
-    }
-
-    exportGoogleBtn.disabled = false;
-    if (created === plan.events.length) {
-      showCalendarStatus(`${created} Termine in Google Kalender angelegt.`);
-    } else if (created > 0) {
-      showCalendarStatus(`${created} von ${plan.events.length} Terminen angelegt. Fehler: ${errors[0] || 'unbekannt'}`, true);
-    } else {
-      showCalendarStatus(`Keine Termine angelegt. ${errors[0] || 'Unbekannter Fehler.'}`, true);
-    }
-  }
-
-  function exportToGoogleCalendar() {
-    if (!lastExportPlan?.events?.length) {
-      showCalendarStatus('Kein Zeitplan zum Exportieren.', true);
-      return;
-    }
-    const clientId = state.settings.googleClientId?.trim();
-    if (!clientId) {
-      showCalendarStatus('Bitte zuerst die Google OAuth Client-ID in den Einstellungen eintragen.', true);
-      settingsBody.hidden = false;
-      settingsToggle.setAttribute('aria-expanded', 'true');
-      settingsChevron.textContent = '\u9652';
-      return;
-    }
-    if (!window.google?.accounts?.oauth2) {
-      showCalendarStatus('Google-Anmeldung wird noch geladen — bitte kurz warten und erneut klicken.', true);
-      return;
-    }
-    if (!googleTokenClient) initGoogleTokenClient();
-    if (!googleTokenClient) {
-      showCalendarStatus('Google Client-ID ungültig oder Anmeldung nicht verfügbar.', true);
-      return;
-    }
-    googleTokenClient.requestAccessToken({ prompt: googleAccessToken ? '' : 'consent' });
+    showCalendarStatus(`${plan.events.length} Termine in der .ics-Datei — in Google Kalender unter Einstellungen → Importieren hochladen.`);
   }
 
   function findShiftSuggestions(steps, baseAnchor, direction, settings) {
@@ -1421,14 +1307,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
     });
   });
 
-  googleClientIdEl.addEventListener('change', () => {
-    state.settings.googleClientId = googleClientIdEl.value.trim();
-    googleTokenClient = null;
-    googleAccessToken = null;
-    saveState();
-  });
-
-  exportGoogleBtn.addEventListener('click', exportToGoogleCalendar);
   exportIcsBtn.addEventListener('click', () => downloadICS(lastExportPlan));
 
   recipeNotesEl.addEventListener('input', () => {
@@ -1439,8 +1317,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
   activeHoursEnabledEl.checked = state.settings.activeHoursEnabled;
   activeFromEl.value = state.settings.activeFrom;
   activeToEl.value = state.settings.activeTo;
-  googleClientIdEl.value = state.settings.googleClientId || '';
-
   renderTemplates();
   renderBasicPresets();
   renderSteps();
