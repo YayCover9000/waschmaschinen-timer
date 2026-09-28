@@ -438,10 +438,30 @@ Backen:
     },
     {
       id: 'pancakes',
-      name: 'Pancakes',
+      name: 'Pfannkuchen',
+      notes: `Vorteig:
+- 200 g Sauerteig (Starter)
+- 190 g Buttermilch
+- 150 g Weizenmehl
+Mehl, Starter und Buttermilch mit Schneebesen verrühren. Über Nacht oder 8–10 Std im Kühlschrank stellen.
+
+Hauptteig (Tag 2):
+- Vorteig
+- 1 Ei
+- 3 EL Butter, geschmolzen und abgekühlt
+- 1/4 TL Salz
+- 3 EL Zucker
+- 1 Pck. Vanillezucker
+Butter schmelzen und abkühlen lassen. Ei, Butter, Salz, Zucker, Vanillezucker und Vorteig mischen.
+
+Backen:
+Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig mit Schöpfkelle in die Pfanne geben und von beiden Seiten goldbraun backen.`,
       steps: [
-        { name: 'Teig ruhen', hours: 0, minutes: 30, kind: 'passive' },
-        { name: 'Backen', hours: 0, minutes: 20, kind: 'active' },
+        { name: 'Vorteig anrühren', hours: 0, minutes: 15, kind: 'active' },
+        { name: 'Vorteig im Kühlschrank', hours: 8, minutes: 0, hoursMax: 10, minutesMax: 0, kind: 'passive' },
+        { name: 'Hauptteig mischen', hours: 0, minutes: 20, kind: 'active' },
+        { name: 'Pfanne vorheizen', hours: 0, minutes: 10, kind: 'active' },
+        { name: 'Pfannkuchen backen', hours: 0, minutes: 25, kind: 'active' },
       ],
     },
   ];
