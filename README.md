@@ -16,13 +16,18 @@ Vorlagen liegen in `localStorage`.
 Als Webseite öffnen unter der GitHub-Pages-URL dieses Repos (Settings → Pages), oder lokal
 `index.html` im Browser öffnen.
 
-## Kalender-Export (.ics)
+## Kalender
 
-1. Zeitplan berechnen lassen
-2. **Kalenderdatei (.ics) herunterladen** klicken
-3. Google Kalender: Einstellungen → Importieren und Exportieren → Importieren → Datei wählen
+Zwei Wege, ohne Login/OAuth (eine OAuth-Variante wurde am 2026-09-28 bewusst wieder entfernt —
+siehe PR #5/#6):
 
-Jeder Schritt wird ein eigener Termin. Bei Spielräumen (z. B. 2–5 Std) gilt das volle Zeitfenster.
+1. **Kalenderdatei (.ics) herunterladen** — importiert alle Schritte auf einmal
+   (Google Kalender: Einstellungen → Importieren und Exportieren → Importieren → Datei wählen).
+2. **Pro Schritt einzeln** — jeder Schritt hat einen eigenen „+ Google Kalender"-Link, der
+   Google Kalender mit vorausgefülltem Termin in einem neuen Tab öffnet (Google's
+   `calendar/render`-Link, rein clientseitig, kein Google-Konto-Zugriff nötig).
+
+Bei Spielräumen (z. B. 2–5 Std) gilt jeweils das volle Zeitfenster.
 
 ## Als App aufs Handy installieren
 

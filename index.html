@@ -267,6 +267,22 @@
   .template-bar select { flex: 1; font-size: 0.85rem; padding: 9px; }
   .template-bar button { flex-shrink: 0; padding: 9px 12px; font-size: 0.78rem; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); cursor: pointer; }
   .day-tag { font-size: 0.72rem; color: var(--muted); font-weight: 400; }
+  .gcal-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .gcal-list a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 0.82rem;
+  }
+  .gcal-list a:hover { border-color: var(--accent); }
+  .gcal-list a .gcal-cta { color: var(--accent); font-weight: 600; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -344,6 +360,8 @@
     </div>
     <p class="hint" id="calendar-hint" style="text-align:left;margin-top:8px">Jeder Schritt wird ein Termin. Google Kalender: Einstellungen → Importieren und Exportieren → Datei wählen.</p>
     <div class="warning" id="calendar-status" hidden></div>
+    <p class="hint" style="text-align:left;margin-top:12px">Oder pro Schritt direkt einzeln hinzufügen (kein Login nötig, öffnet Google Kalender mit vorausgefülltem Termin):</p>
+    <div class="gcal-list" id="gcal-links" hidden></div>
   </div>
 
   <div class="hint" id="washer-hint" hidden>Die Startzeitvorwahl läuft in ganzen Stunden ab jetzt. Es wird abgerundet, damit die Wäsche spätestens zur gewünschten Zeit fertig ist.</div>
@@ -512,6 +530,7 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
   const calendarCardEl = document.getElementById('calendar-card');
   const exportIcsBtn = document.getElementById('export-ics');
   const calendarStatusEl = document.getElementById('calendar-status');
+  const gcalLinksEl = document.getElementById('gcal-links');
 
   let state = loadState();
   let calcMode = state.calcMode || 'forward';
@@ -751,10 +770,41 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
     return lines.join('\n');
   }
 
+  function formatGCalDateTime(date) {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  }
+
+  function googleCalendarUrl(ev, plan) {
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: `${plan.recipeName}: ${ev.name}`,
+      dates: `${formatGCalDateTime(ev.start)}/${formatGCalDateTime(ev.end)}`,
+      details: buildEventDescription(ev, plan),
+    });
+    return `https://calendar.google.com/calendar/render?${params.toString()}`;
+  }
+
+  function renderGCalLinks(plan) {
+    if (!plan?.events?.length) {
+      gcalLinksEl.hidden = true;
+      gcalLinksEl.innerHTML = '';
+      return;
+    }
+    gcalLinksEl.hidden = false;
+    gcalLinksEl.innerHTML = plan.events.map((ev) => {
+      const url = googleCalendarUrl(ev, plan);
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">
+        <span>${ev.stepNumber}. ${escapeAttr(ev.name)}</span>
+        <span class="gcal-cta">+ Google Kalender</span>
+      </a>`;
+    }).join('');
+  }
+
   function setExportPlan(plan) {
     lastExportPlan = plan;
     calendarCardEl.hidden = !(plan && plan.events && plan.events.length > 0);
     calendarStatusEl.hidden = true;
+    renderGCalLinks(plan);
   }
 
   function showCalendarStatus(message, isError) {
