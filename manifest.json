@@ -1,7 +1,7 @@
 {
-  "name": "Waschtimer",
-  "short_name": "Waschtimer",
-  "description": "Startzeitvorwahl für die Waschmaschine berechnen",
+  "name": "Schrittplaner",
+  "short_name": "Schrittplaner",
+  "description": "Mehrschritt-Zeitplaner für Backen, Garen und Waschmaschine",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Waschtimer</title>
-<meta name="description" content="Errechnet die Startzeitvorwahl deiner Waschmaschine (in ganzen Stunden), damit sie pünktlich zur Zielzeit fertig ist." />
+<title>Schrittplaner</title>
+<meta name="description" content="Mehrschritt-Zeitplaner: Abläufe mit beliebig vielen Schritten planen, Vorwärts- und Rückwärtsrechnung, Vorlagen für Backen und Waschmaschine." />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icon-192.png" type="image/png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <meta name="theme-color" content="#1f6fb2" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="Waschtimer" />
+<meta name="apple-mobile-web-app-title" content="Schrittplaner" />
 <meta name="mobile-web-app-capable" content="yes" />
 <style>
   :root {
@@ -24,6 +24,10 @@
     --accent-soft: #e5f0f8;
     --warn: #a4581c;
     --warn-soft: #fbeee1;
+    --danger: #b83232;
+    --danger-soft: #fdeaea;
+    --passive: #5a7a5a;
+    --passive-soft: #e8f0e8;
     color-scheme: light;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -39,6 +43,10 @@
       --accent-soft: #1c2c3a;
       --warn: #e0a25f;
       --warn-soft: #3a2c1c;
+      --danger: #f07070;
+      --danger-soft: #3a2020;
+      --passive: #8ab88a;
+      --passive-soft: #1a2a1a;
       color-scheme: dark;
     }
   }
@@ -54,9 +62,9 @@
     display: flex;
     justify-content: center;
   }
-  main { width: 100%; max-width: 420px; }
+  main { width: 100%; max-width: 440px; }
   h1 {
-    margin: 0 0 16px;
+    margin: 0 0 12px;
     text-align: center;
     color: var(--muted);
     text-transform: uppercase;
@@ -70,6 +78,14 @@
     border-radius: 14px;
     padding: 18px;
     margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 700;
   }
   .clock { text-align: center; }
   .clock .label { font-size: 0.75rem; color: var(--muted); }
@@ -87,8 +103,8 @@
   }
   label:first-of-type { margin-top: 0; }
   .duration-row { display: flex; gap: 8px; align-items: center; }
-  .duration-row span { color: var(--muted); font-size: 0.85rem; }
-  input[type="number"], input[type="time"] {
+  .duration-row span { color: var(--muted); font-size: 0.85rem; flex-shrink: 0; }
+  input[type="number"], input[type="time"], input[type="text"], select {
     width: 100%;
     padding: 11px;
     font-size: 1rem;
@@ -99,8 +115,9 @@
     color: var(--ink);
   }
   input[type="number"] { text-align: center; }
+  input[type="checkbox"] { width: auto; margin-right: 8px; }
   .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-  .presets button {
+  .presets button, .btn-row button, .shift-actions button {
     flex: 1 1 auto;
     padding: 7px 10px;
     font-size: 0.78rem;
@@ -114,13 +131,13 @@
   .result { text-align: center; background: var(--accent-soft); border-color: transparent; }
   .result .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .result .big {
-    font-size: 2.6rem;
+    font-size: 2.2rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--accent);
     margin: 2px 0 8px;
   }
-  .result .detail { color: var(--ink); font-size: 0.86rem; line-height: 1.6; }
+  .result .detail { color: var(--ink); font-size: 0.86rem; line-height: 1.6; text-align: left; }
   .result .detail strong { font-variant-numeric: tabular-nums; }
   .warning {
     margin-top: 10px;
@@ -129,13 +146,117 @@
     background: var(--warn-soft);
     color: var(--warn);
     font-size: 0.8rem;
+    text-align: left;
   }
+  .warning.danger { background: var(--danger-soft); color: var(--danger); }
   .hint { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 4px; line-height: 1.5; }
+  .mode-toggle {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+  .mode-toggle button {
+    flex: 1;
+    padding: 8px;
+    font-size: 0.78rem;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .mode-toggle button.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .step-list { display: flex; flex-direction: column; gap: 8px; }
+  .step-item {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    background: var(--paper);
+  }
+  .step-item-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .step-item-header input[type="text"] {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
+  .step-item-header .step-num {
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-weight: 700;
+    min-width: 1.2rem;
+  }
+  .step-item-header button.remove {
+    border: none;
+    background: none;
+    color: var(--danger);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+  .step-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .step-meta input[type="number"] { width: 3.2rem; padding: 8px 4px; }
+  .step-meta select { width: auto; flex: 1; min-width: 6rem; padding: 8px; font-size: 0.85rem; }
+  .btn-row { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .btn-row button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .timeline { text-align: left; }
+  .timeline-item {
+    display: grid;
+    grid-template-columns: 4.5rem 1fr;
+    gap: 4px 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.84rem;
+  }
+  .timeline-item:last-child { border-bottom: none; }
+  .timeline-time {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .timeline-name { font-weight: 600; }
+  .timeline-meta { grid-column: 2; font-size: 0.76rem; color: var(--muted); }
+  .timeline-item.passive .timeline-time { color: var(--passive); }
+  .timeline-item.flagged { background: var(--danger-soft); border-radius: 8px; padding: 8px; margin: 0 -8px; }
+  .timeline-item.flagged .timeline-time { color: var(--danger); }
+  .shift-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .shift-actions button { flex: 1 1 calc(50% - 3px); font-size: 0.76rem; }
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+  }
+  .settings-toggle span { font-size: 0.72rem; color: var(--muted); }
+  .settings-body { margin-top: 12px; }
+  .settings-body[hidden] { display: none; }
+  .settings-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .settings-row label { margin: 0; flex-shrink: 0; }
+  .settings-row input[type="time"] { flex: 1; }
+  .template-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; }
+  .template-bar select { flex: 1; font-size: 0.85rem; padding: 9px; }
+  .template-bar button { flex-shrink: 0; padding: 9px 12px; font-size: 0.78rem; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); cursor: pointer; }
+  .day-tag { font-size: 0.72rem; color: var(--muted); font-weight: 400; }
 </style>
 </head>
 <body>
 <main>
-  <h1>🧺 Waschtimer</h1>
+  <h1>Schrittplaner</h1>
 
   <div class="card clock">
     <div class="label">Aktuelle Uhrzeit</div>
@@ -143,88 +264,457 @@
   </div>
 
   <div class="card">
-    <label for="duration-h">Programmdauer</label>
-    <div class="duration-row">
-      <input type="number" id="duration-h" min="0" max="23" value="3" aria-label="Stunden" />
-      <span>Std</span>
-      <input type="number" id="duration-m" min="0" max="59" value="16" aria-label="Minuten" />
-      <span>Min</span>
-    </div>
-    <div class="presets" id="presets">
-      <button type="button" data-h="3" data-m="16" class="active">3:16 (Standard)</button>
-      <button type="button" data-h="1" data-m="30">1:30</button>
-      <button type="button" data-h="2" data-m="0">2:00</button>
-    </div>
-
-    <label for="target-time">Fertig sein um</label>
-    <input type="time" id="target-time" />
+    <div class="card-title">Basis-Vorlagen</div>
+    <div class="presets" id="basic-presets"></div>
   </div>
 
-  <div class="card result">
-    <div class="eyebrow">Startzeitvorwahl einstellen auf</div>
-    <div class="big" id="timer-output">–</div>
-    <div class="detail" id="timer-detail"></div>
-    <div class="warning" id="warning" hidden></div>
+  <div class="card">
+      <div class="mode-toggle" id="mode-toggle">
+        <button type="button" id="calc-forward" class="active">Jetzt / ab Startzeit</button>
+        <button type="button" id="calc-backward">Fertig um</button>
+      </div>
+
+      <div id="anchor-forward">
+        <label for="start-time">Start um</label>
+        <input type="time" id="start-time" />
+      </div>
+      <div id="anchor-backward" hidden>
+        <label for="target-time-multi">Fertig um</label>
+        <input type="time" id="target-time-multi" />
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Vorlage</div>
+      <div class="template-bar">
+        <select id="template-select" aria-label="Vorlage laden"></select>
+        <button type="button" id="template-load">Laden</button>
+      </div>
+      <div class="btn-row">
+        <button type="button" id="template-save" class="primary">Als Vorlage speichern</button>
+        <button type="button" id="template-delete">Vorlage löschen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Schritte</div>
+      <div class="presets" id="washer-duration-presets" hidden>
+        <button type="button" data-h="3" data-m="16">3:16 (Standard)</button>
+        <button type="button" data-h="1" data-m="30">1:30</button>
+        <button type="button" data-h="2" data-m="0">2:00</button>
+      </div>
+      <div class="step-list" id="step-list"></div>
+      <div class="btn-row">
+        <button type="button" id="add-step">+ Schritt</button>
+      </div>
+    </div>
+
+    <div class="card result">
+      <div class="eyebrow" id="multi-eyebrow">Fertig um</div>
+      <div class="big" id="multi-output">–</div>
+      <div class="detail" id="multi-detail"></div>
+      <div class="warning" id="multi-warning" hidden></div>
+      <div class="shift-actions" id="shift-actions" hidden></div>
+    </div>
+
+  <div class="card timeline" id="timeline-card" hidden>
+    <div class="card-title">Zeitplan</div>
+    <div id="timeline"></div>
   </div>
 
-  <div class="hint">Die Startzeitvorwahl läuft in ganzen Stunden ab jetzt. Es wird abgerundet, damit die Wäsche spätestens zur gewünschten Zeit fertig ist.</div>
+  <div class="hint" id="washer-hint" hidden>Die Startzeitvorwahl läuft in ganzen Stunden ab jetzt. Es wird abgerundet, damit die Wäsche spätestens zur gewünschten Zeit fertig ist.</div>
+
+  <!-- Settings -->
+  <div class="card">
+    <div class="settings-toggle" id="settings-toggle" tabindex="0" role="button" aria-expanded="false">
+      <div class="card-title" style="margin:0">Einstellungen</div>
+      <span id="settings-chevron">&#9662;</span>
+    </div>
+    <div class="settings-body" id="settings-body" hidden>
+      <label style="display:flex;align-items:center;margin-top:0">
+        <input type="checkbox" id="active-hours-enabled" />
+        Aktive Schritte auf bestimmte Uhrzeiten prüfen
+      </label>
+      <div class="settings-row">
+        <label for="active-from">Von</label>
+        <input type="time" id="active-from" value="07:00" />
+      </div>
+      <div class="settings-row">
+        <label for="active-to">Bis</label>
+        <input type="time" id="active-to" value="22:00" />
+      </div>
+      <p class="hint" style="text-align:left;margin-top:10px">Gilt nur für Schritte vom Typ „aktiv“. Liegen Start oder Ende außerhalb des Fensters, erscheint eine Warnung mit Verschiebe-Vorschlägen.</p>
+    </div>
+  </div>
 </main>
 
 <script>
+  const STORAGE_KEY = 'schrittplaner-v2';
+  const DEFAULT_TEMPLATES = [
+    {
+      id: 'waschmaschine',
+      name: 'Waschmaschine',
+      mode: 'washer',
+      steps: [
+        { name: 'Waschprogramm', hours: 3, minutes: 16, kind: 'passive' },
+      ],
+    },
+    {
+      id: 'sauerteig-dunkles-brot',
+      name: 'Sauerteig dunkles Brot',
+      steps: [
+        { name: 'Autolyse / Mix', hours: 0, minutes: 30, kind: 'active' },
+        { name: 'Bulk Ferment', hours: 5, minutes: 0, kind: 'passive' },
+        { name: 'Formen', hours: 0, minutes: 15, kind: 'active' },
+        { name: 'Kaltgare', hours: 12, minutes: 0, kind: 'passive' },
+        { name: 'Backen', hours: 0, minutes: 45, kind: 'active' },
+      ],
+    },
+    {
+      id: 'sauerteig-toast',
+      name: 'Sauerteig Toast',
+      steps: [
+        { name: 'Mix / Kneten', hours: 0, minutes: 20, kind: 'active' },
+        { name: 'Bulk Ferment', hours: 4, minutes: 0, kind: 'passive' },
+        { name: 'Formen', hours: 0, minutes: 10, kind: 'active' },
+        { name: 'Proof', hours: 3, minutes: 0, kind: 'passive' },
+        { name: 'Backen', hours: 0, minutes: 40, kind: 'active' },
+      ],
+    },
+    {
+      id: 'pancakes',
+      name: 'Pancakes',
+      steps: [
+        { name: 'Teig ruhen', hours: 0, minutes: 30, kind: 'passive' },
+        { name: 'Backen', hours: 0, minutes: 20, kind: 'active' },
+      ],
+    },
+  ];
+
   const clockEl = document.getElementById('clock');
-  const hEl = document.getElementById('duration-h');
-  const mEl = document.getElementById('duration-m');
-  const targetEl = document.getElementById('target-time');
-  const outputEl = document.getElementById('timer-output');
-  const detailEl = document.getElementById('timer-detail');
-  const warningEl = document.getElementById('warning');
-  const presetButtons = document.querySelectorAll('#presets button');
+  const basicPresetsEl = document.getElementById('basic-presets');
+  const washerDurationPresetsEl = document.getElementById('washer-duration-presets');
+  const washerHintEl = document.getElementById('washer-hint');
+
+  const modeToggleEl = document.getElementById('mode-toggle');
+  const calcForwardBtn = document.getElementById('calc-forward');
+  const calcBackwardBtn = document.getElementById('calc-backward');
+  const anchorForward = document.getElementById('anchor-forward');
+  const anchorBackward = document.getElementById('anchor-backward');
+  const startTimeEl = document.getElementById('start-time');
+  const targetTimeMultiEl = document.getElementById('target-time-multi');
+  const stepListEl = document.getElementById('step-list');
+  const addStepBtn = document.getElementById('add-step');
+  const multiEyebrow = document.getElementById('multi-eyebrow');
+  const multiOutput = document.getElementById('multi-output');
+  const multiDetail = document.getElementById('multi-detail');
+  const multiWarning = document.getElementById('multi-warning');
+  const shiftActions = document.getElementById('shift-actions');
+  const timelineCard = document.getElementById('timeline-card');
+  const timelineEl = document.getElementById('timeline');
+
+  const templateSelect = document.getElementById('template-select');
+  const templateLoadBtn = document.getElementById('template-load');
+  const templateSaveBtn = document.getElementById('template-save');
+  const templateDeleteBtn = document.getElementById('template-delete');
+
+  const settingsToggle = document.getElementById('settings-toggle');
+  const settingsBody = document.getElementById('settings-body');
+  const settingsChevron = document.getElementById('settings-chevron');
+  const activeHoursEnabledEl = document.getElementById('active-hours-enabled');
+  const activeFromEl = document.getElementById('active-from');
+  const activeToEl = document.getElementById('active-to');
+
+  let state = loadState();
+  let calcMode = state.calcMode || 'forward';
+  let currentShiftMinutes = 0;
+
+  function isWasherMode() {
+    return state.workflowMode === 'washer';
+  }
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function formatTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
   function formatHM(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
 
-  function defaultTargetTime() {
-    const now = new Date();
-    const durH = parseInt(hEl.value, 10) || 0;
-    const durM = parseInt(mEl.value, 10) || 0;
-    const t = new Date(now.getTime() + (durH * 60 + durM) * 60000);
-    t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
-    return t;
+  function dayLabel(date, refDate) {
+    const d0 = new Date(refDate); d0.setHours(0, 0, 0, 0);
+    const d1 = new Date(date); d1.setHours(0, 0, 0, 0);
+    const diff = Math.round((d1 - d0) / 86400000);
+    if (diff === 0) return '';
+    if (diff === 1) return ' morgen';
+    if (diff === -1) return ' gestern';
+    const days = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+    return ` ${days[date.getDay()]}`;
   }
 
-  function setPresetActive(h, m) {
-    presetButtons.forEach((btn) => {
-      btn.classList.toggle('active', Number(btn.dataset.h) === h && Number(btn.dataset.m) === m);
+  function formatHMWithDay(date, refDate) {
+    return `${formatHM(date)}${dayLabel(date, refDate)}`;
+  }
+
+  function stepDurationMinutes(step) {
+    return (Number(step.hours) || 0) * 60 + (Number(step.minutes) || 0);
+  }
+
+  function cloneTemplate(t) {
+    return { ...t, steps: t.steps.map((s) => ({ ...s })) };
+  }
+
+  function mergeDefaultTemplates(templates) {
+    const merged = templates.map(cloneTemplate);
+    DEFAULT_TEMPLATES.forEach((def) => {
+      if (!merged.some((t) => t.id === def.id)) merged.unshift(cloneTemplate(def));
+    });
+    return merged;
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        parsed.templates = mergeDefaultTemplates(parsed.templates || []);
+        if (!parsed.workflowMode) parsed.workflowMode = 'multi';
+        if (!parsed.activeTemplateId) parsed.activeTemplateId = parsed.templates[0]?.id || 'waschmaschine';
+        return parsed;
+      }
+    } catch (_) { /* ignore */ }
+    const templates = DEFAULT_TEMPLATES.map(cloneTemplate);
+    return {
+      steps: templates[0].steps.map((s) => ({ ...s })),
+      templates,
+      workflowMode: templates[0].mode || 'multi',
+      activeTemplateId: templates[0].id,
+      calcMode: templates[0].mode === 'washer' ? 'backward' : 'forward',
+      settings: { activeHoursEnabled: false, activeFrom: '07:00', activeTo: '22:00' },
+    };
+  }
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function parseTimeOnDate(timeStr, refDate) {
+    const [h, m] = timeStr.split(':').map(Number);
+    const d = new Date(refDate);
+    d.setHours(h, m, 0, 0);
+    return d;
+  }
+
+  function parseTimeToMinutes(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function isOutsideWindow(date, fromMin, toMin) {
+    const min = date.getHours() * 60 + date.getMinutes();
+    if (fromMin <= toMin) return min < fromMin || min >= toMin;
+    return min >= toMin && min < fromMin;
+  }
+
+  function buildTimeline(steps, anchor, direction) {
+    const timeline = [];
+    if (direction === 'forward') {
+      let t = new Date(anchor);
+      for (const step of steps) {
+        const dur = stepDurationMinutes(step);
+        const start = new Date(t);
+        const end = new Date(t.getTime() + dur * 60000);
+        timeline.push({ ...step, start, end, durationMinutes: dur });
+        t = end;
+      }
+    } else {
+      let t = new Date(anchor);
+      for (let i = steps.length - 1; i >= 0; i--) {
+        const step = steps[i];
+        const dur = stepDurationMinutes(step);
+        const end = new Date(t);
+        const start = new Date(t.getTime() - dur * 60000);
+        timeline.push({ ...step, start, end, durationMinutes: dur });
+        t = start;
+      }
+      timeline.reverse();
+    }
+    return timeline;
+  }
+
+  function findActiveViolations(timeline, settings) {
+    if (!settings.activeHoursEnabled) return [];
+    const fromMin = parseTimeToMinutes(settings.activeFrom);
+    const toMin = parseTimeToMinutes(settings.activeTo);
+    const violations = [];
+    timeline.forEach((item, idx) => {
+      if (item.kind !== 'active') return;
+      const startBad = isOutsideWindow(item.start, fromMin, toMin);
+      const endBad = isOutsideWindow(item.end, fromMin, toMin);
+      if (startBad || endBad) {
+        violations.push({ idx, item, startBad, endBad });
+      }
+    });
+    return violations;
+  }
+
+  function formatDuration(minutes) {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h && m) return `${h} Std ${pad(m)} Min`;
+    if (h) return `${h} Std`;
+    return `${m} Min`;
+  }
+
+  function findShiftSuggestions(steps, baseAnchor, direction, settings) {
+    const candidates = [];
+    for (let shift = -720; shift <= 720; shift += 15) {
+      if (shift === 0) continue;
+      const anchor = new Date(baseAnchor.getTime() + shift * 60000);
+      const timeline = buildTimeline(steps, anchor, direction);
+      const violations = findActiveViolations(timeline, settings);
+      if (violations.length === 0) {
+        candidates.push({ shift, timeline });
+      }
+    }
+    candidates.sort((a, b) => Math.abs(a.shift) - Math.abs(b.shift));
+    return candidates.slice(0, 4);
+  }
+
+  function renderSteps() {
+    stepListEl.innerHTML = '';
+    const hideRemove = isWasherMode() && state.steps.length <= 1;
+    state.steps.forEach((step, idx) => {
+      const div = document.createElement('div');
+      div.className = 'step-item';
+      div.innerHTML = `
+        <div class="step-item-header">
+          <span class="step-num">${idx + 1}.</span>
+          <input type="text" value="${escapeAttr(step.name)}" aria-label="Schrittname" data-field="name" data-idx="${idx}" />
+          ${hideRemove ? '' : `<button type="button" class="remove" aria-label="Schritt entfernen" data-remove="${idx}">&times;</button>`}
+        </div>
+        <div class="step-meta">
+          <input type="number" min="0" max="99" value="${Number(step.hours) || 0}" aria-label="Stunden" data-field="hours" data-idx="${idx}" />
+          <span>Std</span>
+          <input type="number" min="0" max="59" value="${Number(step.minutes) || 0}" aria-label="Minuten" data-field="minutes" data-idx="${idx}" />
+          <span>Min</span>
+          ${isWasherMode() ? '' : `<select data-field="kind" data-idx="${idx}">
+            <option value="active" ${step.kind === 'active' ? 'selected' : ''}>aktiv</option>
+            <option value="passive" ${step.kind === 'passive' ? 'selected' : ''}>passiv</option>
+          </select>`}
+        </div>`;
+      stepListEl.appendChild(div);
+    });
+
+    stepListEl.querySelectorAll('[data-field]').forEach((el) => {
+      el.addEventListener('input', onStepFieldChange);
+      el.addEventListener('change', onStepFieldChange);
+    });
+    stepListEl.querySelectorAll('[data-remove]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.remove);
+        state.steps.splice(idx, 1);
+        if (state.steps.length === 0) state.steps.push(defaultStep());
+        if (isWasherMode() && state.steps.length !== 1) state.workflowMode = 'multi';
+        saveState();
+        currentShiftMinutes = 0;
+        updateWasherUi();
+        renderSteps();
+        calculateMulti();
+      });
     });
   }
 
-  presetButtons.forEach((btn) => {
-    btn.addEventListener('click', () => {
-      hEl.value = Number(btn.dataset.h);
-      mEl.value = Number(btn.dataset.m);
-      calculate();
-    });
-  });
+  function escapeAttr(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
 
-  function calculate() {
+  function defaultStep() {
+    return { name: 'Neuer Schritt', hours: 0, minutes: 30, kind: 'passive' };
+  }
+
+  function onStepFieldChange(e) {
+    const el = e.target;
+    const idx = Number(el.dataset.idx);
+    const field = el.dataset.field;
+    if (field === 'name') state.steps[idx].name = el.value;
+    else if (field === 'hours') state.steps[idx].hours = Math.max(0, parseInt(el.value, 10) || 0);
+    else if (field === 'minutes') state.steps[idx].minutes = Math.max(0, Math.min(59, parseInt(el.value, 10) || 0));
+    else if (field === 'kind') state.steps[idx].kind = el.value;
+    saveState();
+    currentShiftMinutes = 0;
+    calculateMulti();
+  }
+
+  function renderTemplates() {
+    templateSelect.innerHTML = '';
+    state.templates.forEach((t) => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name;
+      templateSelect.appendChild(opt);
+    });
+    if (state.activeTemplateId) templateSelect.value = state.activeTemplateId;
+  }
+
+  function renderBasicPresets() {
+    basicPresetsEl.innerHTML = '';
+    state.templates.forEach((t) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = t.name;
+      btn.classList.toggle('active', t.id === state.activeTemplateId);
+      btn.addEventListener('click', () => loadTemplate(t.id));
+      basicPresetsEl.appendChild(btn);
+    });
+  }
+
+  function updateWasherUi() {
+    const washer = isWasherMode();
+    washerHintEl.hidden = !washer;
+    washerDurationPresetsEl.hidden = !washer;
+    modeToggleEl.hidden = washer;
+    addStepBtn.hidden = washer;
+    if (washer) {
+      calcMode = 'backward';
+      state.calcMode = 'backward';
+    }
+    calcForwardBtn.classList.toggle('active', calcMode === 'forward');
+    calcBackwardBtn.classList.toggle('active', calcMode === 'backward');
+    anchorForward.hidden = washer || calcMode !== 'forward';
+    anchorBackward.hidden = !washer && calcMode !== 'backward';
+  }
+
+  function loadTemplate(id) {
+    const tpl = state.templates.find((t) => t.id === id);
+    if (!tpl) return;
+    state.steps = tpl.steps.map((s) => ({ ...s }));
+    state.workflowMode = tpl.mode === 'washer' ? 'washer' : 'multi';
+    state.activeTemplateId = tpl.id;
+    if (state.workflowMode === 'washer') calcMode = 'backward';
+    saveState();
+    currentShiftMinutes = 0;
+    renderBasicPresets();
+    renderTemplates();
+    renderSteps();
+    updateWasherUi();
+    switchCalcMode(calcMode);
+  }
+
+  function calculateWasher(steps) {
     const now = new Date();
-    let durH = parseInt(hEl.value, 10);
-    let durM = parseInt(mEl.value, 10);
-    if (isNaN(durH) || durH < 0) durH = 0;
-    if (isNaN(durM) || durM < 0) durM = 0;
+    const step = steps[0];
+    const durH = Number(step.hours) || 0;
+    const durM = Number(step.minutes) || 0;
     const durationMinutes = durH * 60 + durM;
 
-    setPresetActive(durH, durM);
+    washerDurationPresetsEl.querySelectorAll('button').forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.h) === durH && Number(btn.dataset.m) === durM);
+    });
 
-    if (!targetEl.value) {
-      outputEl.textContent = '–';
-      detailEl.textContent = 'Bitte Zielzeit eingeben.';
-      warningEl.hidden = true;
-      return;
+    if (!targetTimeMultiEl.value) {
+      const t = new Date(now.getTime() + durationMinutes * 60000);
+      t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
+      targetTimeMultiEl.value = formatHM(t);
     }
 
-    const [targetH, targetM] = targetEl.value.split(':').map(Number);
+    const [targetH, targetM] = targetTimeMultiEl.value.split(':').map(Number);
     let target = new Date(now);
     target.setHours(targetH, targetM, 0, 0);
     if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
@@ -238,11 +728,15 @@
     }
 
     const delayMinutesTotal = Math.round((start.getTime() - now.getTime()) / 60000);
+    timelineCard.hidden = true;
+    shiftActions.hidden = true;
+    shiftActions.innerHTML = '';
 
     if (delayMinutesTotal <= 0) {
-      outputEl.textContent = 'Sofort starten';
-      detailEl.textContent = `Das Programm (${durH} Std ${pad(durM)} Min) ist bereits länger als die Zeit bis zur Zielzeit.`;
-      warningEl.hidden = true;
+      multiEyebrow.textContent = 'Startzeitvorwahl';
+      multiOutput.textContent = 'Sofort starten';
+      multiDetail.textContent = `Das Programm (${durH} Std ${pad(durM)} Min) ist bereits länger als die Zeit bis zur Zielzeit.`;
+      multiWarning.hidden = true;
       return;
     }
 
@@ -251,45 +745,278 @@
     const ceiledHours = Math.ceil(exactHours);
 
     if (flooredHours <= 0) {
-      outputEl.textContent = '0 Std – jetzt starten';
+      multiEyebrow.textContent = 'Startzeitvorwahl einstellen auf';
+      multiOutput.textContent = '0 Std – jetzt starten';
       const nowFinish = new Date(now.getTime() + durationMinutes * 60000);
-      detailEl.innerHTML = `In ganzen Stunden gibt es keinen kürzeren Timer. Jetzt starten → fertig um <strong>${formatHM(nowFinish)}</strong>, vor der Zielzeit <strong>${formatHM(target)}</strong>.`;
-      warningEl.hidden = true;
+      multiDetail.innerHTML = `In ganzen Stunden gibt es keinen kürzeren Timer. Jetzt starten &rarr; fertig um <strong>${formatHM(nowFinish)}</strong>, vor der Zielzeit <strong>${formatHM(target)}</strong>.`;
+      multiWarning.hidden = true;
       return;
     }
 
     const flooredStart = new Date(now.getTime() + flooredHours * 3600000);
     const flooredFinish = new Date(flooredStart.getTime() + durationMinutes * 60000);
 
-    outputEl.textContent = `${flooredHours} Std`;
+    multiEyebrow.textContent = 'Startzeitvorwahl einstellen auf';
+    multiOutput.textContent = `${flooredHours} Std`;
 
-    let detail = `Start um <strong>${formatHM(flooredStart)}</strong>${dayNote} → fertig um <strong>${formatHM(flooredFinish)}</strong> (Ziel: ${formatHM(target)}).`;
+    let detail = `Start um <strong>${formatHM(flooredStart)}</strong>${dayNote} &rarr; fertig um <strong>${formatHM(flooredFinish)}</strong> (Ziel: ${formatHM(target)}).`;
 
     if (ceiledHours !== flooredHours) {
       const ceiledStart = new Date(now.getTime() + ceiledHours * 3600000);
       const ceiledFinish = new Date(ceiledStart.getTime() + durationMinutes * 60000);
-      detail += `<br>Alternative <strong>${ceiledHours} Std</strong>: Start um ${formatHM(ceiledStart)} → fertig erst um ${formatHM(ceiledFinish)}, also nach der Zielzeit.`;
+      detail += `<br>Alternative <strong>${ceiledHours} Std</strong>: Start um ${formatHM(ceiledStart)} &rarr; fertig erst um ${formatHM(ceiledFinish)}, also nach der Zielzeit.`;
     }
 
-    detailEl.innerHTML = detail;
+    multiDetail.innerHTML = detail;
 
     if (flooredHours >= 24) {
-      warningEl.hidden = false;
-      warningEl.textContent = 'Die Wartezeit liegt über 24 Stunden – prüfe, ob dein Timer das zulässt.';
+      multiWarning.hidden = false;
+      multiWarning.className = 'warning';
+      multiWarning.textContent = 'Die Wartezeit liegt über 24 Stunden – prüfe, ob dein Timer das zulässt.';
     } else {
-      warningEl.hidden = true;
+      multiWarning.hidden = true;
     }
   }
 
-  function tick() { clockEl.textContent = formatTime(new Date()); }
+  function calculateMulti() {
+    const now = new Date();
+    const steps = state.steps.filter((s) => stepDurationMinutes(s) > 0 || s.name.trim());
 
-  if (!targetEl.value) targetEl.value = formatHM(defaultTargetTime());
+    if (steps.length === 0 || steps.every((s) => stepDurationMinutes(s) === 0)) {
+      multiOutput.textContent = '–';
+      multiDetail.textContent = 'Mindestens einen Schritt mit Dauer eintragen.';
+      multiWarning.hidden = true;
+      shiftActions.hidden = true;
+      timelineCard.hidden = true;
+      return;
+    }
 
-  [hEl, mEl, targetEl].forEach((el) => el.addEventListener('input', calculate));
+    if (isWasherMode()) {
+      calculateWasher(steps);
+      return;
+    }
+
+    let anchor;
+    let direction = calcMode;
+
+    if (calcMode === 'forward') {
+      if (!startTimeEl.value) {
+        startTimeEl.value = formatHM(now);
+      }
+      anchor = parseTimeOnDate(startTimeEl.value, now);
+      if (anchor.getTime() < now.getTime() - 60000) anchor.setDate(anchor.getDate() + 1);
+      anchor = new Date(anchor.getTime() + currentShiftMinutes * 60000);
+    } else {
+      if (!targetTimeMultiEl.value) {
+        const totalMin = steps.reduce((sum, s) => sum + stepDurationMinutes(s), 0);
+        const t = new Date(now.getTime() + totalMin * 60000);
+        t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
+        targetTimeMultiEl.value = formatHM(t);
+      }
+      anchor = parseTimeOnDate(targetTimeMultiEl.value, now);
+      if (anchor.getTime() <= now.getTime()) anchor.setDate(anchor.getDate() + 1);
+      anchor = new Date(anchor.getTime() + currentShiftMinutes * 60000);
+    }
+
+    const timeline = buildTimeline(steps, anchor, direction);
+    const start = timeline[0].start;
+    const finish = timeline[timeline.length - 1].end;
+    const violations = findActiveViolations(timeline, state.settings);
+
+    if (calcMode === 'forward') {
+      multiEyebrow.textContent = 'Fertig um';
+      multiOutput.textContent = formatHMWithDay(finish, now);
+      multiDetail.innerHTML = `Start: <strong>${formatHMWithDay(start, now)}</strong>, Gesamtdauer <strong>${formatDuration(steps.reduce((s, st) => s + stepDurationMinutes(st), 0))}</strong>.`;
+    } else {
+      multiEyebrow.textContent = 'Start um';
+      multiOutput.textContent = formatHMWithDay(start, now);
+      multiDetail.innerHTML = `Fertig: <strong>${formatHMWithDay(finish, now)}</strong> (Ziel), Gesamtdauer <strong>${formatDuration(steps.reduce((s, st) => s + stepDurationMinutes(st), 0))}</strong>.`;
+    }
+
+    renderTimeline(timeline, now, violations);
+
+    multiWarning.hidden = true;
+    shiftActions.hidden = true;
+    shiftActions.innerHTML = '';
+
+    if (violations.length > 0 && state.settings.activeHoursEnabled) {
+      multiWarning.hidden = false;
+      multiWarning.className = 'warning danger';
+      const names = violations.map((v) => `"${v.item.name}" (${formatHM(v.item.start)}${dayLabel(v.item.start, now)})`).join(', ');
+      multiWarning.textContent = `Aktive Schritte außerhalb ${state.settings.activeFrom}–${state.settings.activeTo}: ${names}.`;
+
+      const baseAnchor = new Date(anchor.getTime() - currentShiftMinutes * 60000);
+      const suggestions = findShiftSuggestions(steps, baseAnchor, direction, state.settings);
+      if (suggestions.length > 0) {
+        shiftActions.hidden = false;
+        suggestions.forEach((sug) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const label = sug.shift > 0
+            ? `${formatDuration(Math.abs(sug.shift))} später`
+            : `${formatDuration(Math.abs(sug.shift))} früher`;
+          btn.textContent = label;
+          btn.addEventListener('click', () => {
+            currentShiftMinutes = sug.shift;
+            if (calcMode === 'forward') {
+              const base = parseTimeOnDate(startTimeEl.value, now);
+              if (base.getTime() < now.getTime() - 60000) base.setDate(base.getDate() + 1);
+              const shifted = new Date(base.getTime() + sug.shift * 60000);
+              startTimeEl.value = formatHM(shifted);
+            } else {
+              const base = parseTimeOnDate(targetTimeMultiEl.value, now);
+              if (base.getTime() <= now.getTime()) base.setDate(base.getDate() + 1);
+              const shifted = new Date(base.getTime() + sug.shift * 60000);
+              targetTimeMultiEl.value = formatHM(shifted);
+            }
+            currentShiftMinutes = 0;
+            calculateMulti();
+          });
+          shiftActions.appendChild(btn);
+        });
+      } else {
+        const p = document.createElement('p');
+        p.className = 'hint';
+        p.style.textAlign = 'left';
+        p.style.marginTop = '8px';
+        p.textContent = 'Kein einfacher Verschiebe-Vorschlag gefunden — Start/Ziel oder Schrittdauern anpassen.';
+        shiftActions.hidden = false;
+        shiftActions.appendChild(p);
+      }
+    } else if (currentShiftMinutes !== 0) {
+      multiWarning.hidden = false;
+      multiWarning.className = 'warning';
+      multiWarning.textContent = `Plan um ${formatDuration(Math.abs(currentShiftMinutes))} ${currentShiftMinutes > 0 ? 'nach hinten' : 'nach vorne'} verschoben.`;
+    }
+  }
+
+  function renderTimeline(timeline, refDate, violations) {
+    const badIdx = new Set(violations.map((v) => v.idx));
+    timelineCard.hidden = false;
+    timelineEl.innerHTML = timeline.map((item, idx) => {
+      const passive = item.kind === 'passive';
+      const flagged = badIdx.has(idx);
+      const dur = formatDuration(item.durationMinutes);
+      const kindLabel = passive ? 'passiv' : 'aktiv';
+      return `<div class="timeline-item ${passive ? 'passive' : ''} ${flagged ? 'flagged' : ''}">
+        <div class="timeline-time">${formatHM(item.start)}<span class="day-tag">${dayLabel(item.start, refDate)}</span></div>
+        <div class="timeline-name">${escapeAttr(item.name)}</div>
+        <div class="timeline-meta">${dur}, ${kindLabel} &rarr; ${formatHM(item.end)}${dayLabel(item.end, refDate)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function switchCalcMode(mode) {
+    if (isWasherMode()) mode = 'backward';
+    calcMode = mode;
+    state.calcMode = mode;
+    currentShiftMinutes = 0;
+    updateWasherUi();
+    saveState();
+    calculateMulti();
+  }
+
+  function tick() {
+    clockEl.textContent = formatTime(new Date());
+  }
+
+  calcForwardBtn.addEventListener('click', () => switchCalcMode('forward'));
+  calcBackwardBtn.addEventListener('click', () => switchCalcMode('backward'));
+  addStepBtn.addEventListener('click', () => {
+    state.steps.push(defaultStep());
+    if (isWasherMode()) state.workflowMode = 'multi';
+    saveState();
+    updateWasherUi();
+    renderSteps();
+    calculateMulti();
+  });
+
+  washerDurationPresetsEl.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!state.steps[0]) return;
+      state.steps[0].hours = Number(btn.dataset.h);
+      state.steps[0].minutes = Number(btn.dataset.m);
+      saveState();
+      renderSteps();
+      calculateMulti();
+    });
+  });
+
+  [startTimeEl, targetTimeMultiEl].forEach((el) => {
+    el.addEventListener('input', () => { currentShiftMinutes = 0; calculateMulti(); });
+  });
+
+  templateLoadBtn.addEventListener('click', () => loadTemplate(templateSelect.value));
+
+  templateSaveBtn.addEventListener('click', () => {
+    const name = prompt('Name der Vorlage:', 'Mein Ablauf');
+    if (!name || !name.trim()) return;
+    const id = name.trim().toLowerCase().replace(/[^a-z0-9äöüß]+/gi, '-').replace(/^-|-$/g, '') || `tpl-${Date.now()}`;
+    const existing = state.templates.findIndex((t) => t.id === id);
+    const entry = {
+      id,
+      name: name.trim(),
+      steps: state.steps.map((s) => ({ ...s })),
+    };
+    if (isWasherMode()) entry.mode = 'washer';
+    if (existing >= 0) {
+      if (!confirm(`Vorlage „${name.trim()}" überschreiben?`)) return;
+      state.templates[existing] = entry;
+    } else {
+      state.templates.push(entry);
+    }
+    state.activeTemplateId = id;
+    saveState();
+    renderTemplates();
+    renderBasicPresets();
+    templateSelect.value = id;
+  });
+
+  templateDeleteBtn.addEventListener('click', () => {
+    const id = templateSelect.value;
+    const tpl = state.templates.find((t) => t.id === id);
+    if (!tpl) return;
+    if (!confirm(`Vorlage „${tpl.name}" wirklich löschen?`)) return;
+    state.templates = state.templates.filter((t) => t.id !== id);
+    if (state.templates.length === 0) {
+      state.templates = DEFAULT_TEMPLATES.map(cloneTemplate);
+    }
+    if (state.activeTemplateId === id) loadTemplate(state.templates[0].id);
+    saveState();
+    renderTemplates();
+    renderBasicPresets();
+  });
+
+  settingsToggle.addEventListener('click', () => {
+    const open = settingsBody.hidden;
+    settingsBody.hidden = !open;
+    settingsToggle.setAttribute('aria-expanded', open);
+    settingsChevron.textContent = open ? '\u9652' : '\u9662';
+  });
+
+  [activeHoursEnabledEl, activeFromEl, activeToEl].forEach((el) => {
+    el.addEventListener('change', () => {
+      state.settings.activeHoursEnabled = activeHoursEnabledEl.checked;
+      state.settings.activeFrom = activeFromEl.value;
+      state.settings.activeTo = activeToEl.value;
+      saveState();
+      calculateMulti();
+    });
+  });
+
+  activeHoursEnabledEl.checked = state.settings.activeHoursEnabled;
+  activeFromEl.value = state.settings.activeFrom;
+  activeToEl.value = state.settings.activeTo;
+
+  renderTemplates();
+  renderBasicPresets();
+  renderSteps();
+  updateWasherUi();
+  switchCalcMode(calcMode);
 
   tick();
-  calculate();
-  setInterval(() => { tick(); calculate(); }, 1000);
+  calculateMulti();
+  setInterval(() => { tick(); calculateMulti(); }, 1000);
 </script>
 </body>
 </html>
