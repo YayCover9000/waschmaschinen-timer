@@ -1132,8 +1132,13 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
       if (!startTimeEl.value) {
         startTimeEl.value = formatHM(now);
       }
+      // "Start um" is always today's date, even if that time is already in the
+      // past (the common case: the user already started X ago and is
+      // entering the real start time). Re-deriving "is this in the past?"
+      // against a live clock on every tick previously pushed the anchor to
+      // tomorrow a minute after entry, silently shifting the whole plan (and
+      // any calendar export) a day forward.
       anchor = parseTimeOnDate(startTimeEl.value, now);
-      if (anchor.getTime() < now.getTime() - 60000) anchor.setDate(anchor.getDate() + 1);
       anchor = new Date(anchor.getTime() + currentShiftMinutes * 60000);
     } else {
       if (!targetTimeMultiEl.value) {
@@ -1194,7 +1199,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
             currentShiftMinutes = sug.shift;
             if (calcMode === 'forward') {
               const base = parseTimeOnDate(startTimeEl.value, now);
-              if (base.getTime() < now.getTime() - 60000) base.setDate(base.getDate() + 1);
               const shifted = new Date(base.getTime() + sug.shift * 60000);
               startTimeEl.value = formatHM(shifted);
             } else {
