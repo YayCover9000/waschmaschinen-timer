@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Waschtimer</title>
+<meta name="description" content="Errechnet die Startzeitvorwahl deiner Waschmaschine (in ganzen Stunden), damit sie pünktlich zur Zielzeit fertig ist." />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#1f6fb2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Waschtimer" />
+<meta name="mobile-web-app-capable" content="yes" />
+<style>
+  :root {
+    --ink: #1b2430;
+    --paper: #f4f6f8;
+    --card: #ffffff;
+    --line: #d7dde3;
+    --muted: #6b7787;
+    --accent: #1f6fb2;
+    --accent-soft: #e5f0f8;
+    --warn: #a4581c;
+    --warn-soft: #fbeee1;
+    color-scheme: light;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e9edf2;
+      --paper: #12161c;
+      --card: #1a1f27;
+      --line: #2b323d;
+      --muted: #8e98a6;
+      --accent: #6cb2ea;
+      --accent-soft: #1c2c3a;
+      --warn: #e0a25f;
+      --warn-soft: #3a2c1c;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding-inline: 16px;
+    padding-block: 20px;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+  main { width: 100%; max-width: 420px; }
+  h1 {
+    margin: 0 0 16px;
+    text-align: center;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+  .clock { text-align: center; }
+  .clock .label { font-size: 0.75rem; color: var(--muted); }
+  .clock .value {
+    font-size: 2.1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  label {
+    display: block;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin: 14px 0 6px;
+  }
+  label:first-of-type { margin-top: 0; }
+  .duration-row { display: flex; gap: 8px; align-items: center; }
+  .duration-row span { color: var(--muted); font-size: 0.85rem; }
+  input[type="number"], input[type="time"] {
+    width: 100%;
+    padding: 11px;
+    font-size: 1rem;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  input[type="number"] { text-align: center; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .presets button {
+    flex: 1 1 auto;
+    padding: 7px 10px;
+    font-size: 0.78rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--paper);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .presets button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .result { text-align: center; background: var(--accent-soft); border-color: transparent; }
+  .result .eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .result .big {
+    font-size: 2.6rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    margin: 2px 0 8px;
+  }
+  .result .detail { color: var(--ink); font-size: 0.86rem; line-height: 1.6; }
+  .result .detail strong { font-variant-numeric: tabular-nums; }
+  .warning {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: 0.8rem;
+  }
+  .hint { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 4px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🧺 Waschtimer</h1>
+
+  <div class="card clock">
+    <div class="label">Aktuelle Uhrzeit</div>
+    <div class="value" id="clock">--:--:--</div>
+  </div>
+
+  <div class="card">
+    <label for="duration-h">Programmdauer</label>
+    <div class="duration-row">
+      <input type="number" id="duration-h" min="0" max="23" value="3" aria-label="Stunden" />
+      <span>Std</span>
+      <input type="number" id="duration-m" min="0" max="59" value="16" aria-label="Minuten" />
+      <span>Min</span>
+    </div>
+    <div class="presets" id="presets">
+      <button type="button" data-h="3" data-m="16" class="active">3:16 (Standard)</button>
+      <button type="button" data-h="1" data-m="30">1:30</button>
+      <button type="button" data-h="2" data-m="0">2:00</button>
+    </div>
+
+    <label for="target-time">Fertig sein um</label>
+    <input type="time" id="target-time" />
+  </div>
+
+  <div class="card result">
+    <div class="eyebrow">Startzeitvorwahl einstellen auf</div>
+    <div class="big" id="timer-output">–</div>
+    <div class="detail" id="timer-detail"></div>
+    <div class="warning" id="warning" hidden></div>
+  </div>
+
+  <div class="hint">Die Startzeitvorwahl läuft in ganzen Stunden ab jetzt. Es wird abgerundet, damit die Wäsche spätestens zur gewünschten Zeit fertig ist.</div>
+</main>
+
+<script>
+  const clockEl = document.getElementById('clock');
+  const hEl = document.getElementById('duration-h');
+  const mEl = document.getElementById('duration-m');
+  const targetEl = document.getElementById('target-time');
+  const outputEl = document.getElementById('timer-output');
+  const detailEl = document.getElementById('timer-detail');
+  const warningEl = document.getElementById('warning');
+  const presetButtons = document.querySelectorAll('#presets button');
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function formatTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+  function formatHM(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+  function defaultTargetTime() {
+    const now = new Date();
+    const durH = parseInt(hEl.value, 10) || 0;
+    const durM = parseInt(mEl.value, 10) || 0;
+    const t = new Date(now.getTime() + (durH * 60 + durM) * 60000);
+    t.setMinutes(Math.ceil(t.getMinutes() / 5) * 5, 0, 0);
+    return t;
+  }
+
+  function setPresetActive(h, m) {
+    presetButtons.forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.h) === h && Number(btn.dataset.m) === m);
+    });
+  }
+
+  presetButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      hEl.value = Number(btn.dataset.h);
+      mEl.value = Number(btn.dataset.m);
+      calculate();
+    });
+  });
+
+  function calculate() {
+    const now = new Date();
+    let durH = parseInt(hEl.value, 10);
+    let durM = parseInt(mEl.value, 10);
+    if (isNaN(durH) || durH < 0) durH = 0;
+    if (isNaN(durM) || durM < 0) durM = 0;
+    const durationMinutes = durH * 60 + durM;
+
+    setPresetActive(durH, durM);
+
+    if (!targetEl.value) {
+      outputEl.textContent = '–';
+      detailEl.textContent = 'Bitte Zielzeit eingeben.';
+      warningEl.hidden = true;
+      return;
+    }
+
+    const [targetH, targetM] = targetEl.value.split(':').map(Number);
+    let target = new Date(now);
+    target.setHours(targetH, targetM, 0, 0);
+    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+
+    let start = new Date(target.getTime() - durationMinutes * 60000);
+    let dayNote = '';
+    if (start.getTime() < now.getTime()) {
+      target.setDate(target.getDate() + 1);
+      start = new Date(target.getTime() - durationMinutes * 60000);
+      dayNote = ' (Ziel dann morgen)';
+    }
+
+    const delayMinutesTotal = Math.round((start.getTime() - now.getTime()) / 60000);
+
+    if (delayMinutesTotal <= 0) {
+      outputEl.textContent = 'Sofort starten';
+      detailEl.textContent = `Das Programm (${durH} Std ${pad(durM)} Min) ist bereits länger als die Zeit bis zur Zielzeit.`;
+      warningEl.hidden = true;
+      return;
+    }
+
+    const exactHours = delayMinutesTotal / 60;
+    const flooredHours = Math.floor(exactHours);
+    const ceiledHours = Math.ceil(exactHours);
+
+    if (flooredHours <= 0) {
+      outputEl.textContent = '0 Std – jetzt starten';
+      const nowFinish = new Date(now.getTime() + durationMinutes * 60000);
+      detailEl.innerHTML = `In ganzen Stunden gibt es keinen kürzeren Timer. Jetzt starten → fertig um <strong>${formatHM(nowFinish)}</strong>, vor der Zielzeit <strong>${formatHM(target)}</strong>.`;
+      warningEl.hidden = true;
+      return;
+    }
+
+    const flooredStart = new Date(now.getTime() + flooredHours * 3600000);
+    const flooredFinish = new Date(flooredStart.getTime() + durationMinutes * 60000);
+
+    outputEl.textContent = `${flooredHours} Std`;
+
+    let detail = `Start um <strong>${formatHM(flooredStart)}</strong>${dayNote} → fertig um <strong>${formatHM(flooredFinish)}</strong> (Ziel: ${formatHM(target)}).`;
+
+    if (ceiledHours !== flooredHours) {
+      const ceiledStart = new Date(now.getTime() + ceiledHours * 3600000);
+      const ceiledFinish = new Date(ceiledStart.getTime() + durationMinutes * 60000);
+      detail += `<br>Alternative <strong>${ceiledHours} Std</strong>: Start um ${formatHM(ceiledStart)} → fertig erst um ${formatHM(ceiledFinish)}, also nach der Zielzeit.`;
+    }
+
+    detailEl.innerHTML = detail;
+
+    if (flooredHours >= 24) {
+      warningEl.hidden = false;
+      warningEl.textContent = 'Die Wartezeit liegt über 24 Stunden – prüfe, ob dein Timer das zulässt.';
+    } else {
+      warningEl.hidden = true;
+    }
+  }
+
+  function tick() { clockEl.textContent = formatTime(new Date()); }
+
+  if (!targetEl.value) targetEl.value = formatHM(defaultTargetTime());
+
+  [hEl, mEl, targetEl].forEach((el) => el.addEventListener('input', calculate));
+
+  tick();
+  calculate();
+  setInterval(() => { tick(); calculate(); }, 1000);
+</script>
+</body>
+</html>
