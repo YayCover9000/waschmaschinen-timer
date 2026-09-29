@@ -951,18 +951,14 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
 
   function updateWasherUi() {
     const washer = isWasherMode();
-    washerHintEl.hidden = !washer;
+    washerHintEl.hidden = !(washer && calcMode === 'backward');
     washerDurationPresetsEl.hidden = !washer;
-    modeToggleEl.hidden = washer;
+    modeToggleEl.hidden = false;
     addStepBtn.hidden = washer;
-    if (washer) {
-      calcMode = 'backward';
-      state.calcMode = 'backward';
-    }
     calcForwardBtn.classList.toggle('active', calcMode === 'forward');
     calcBackwardBtn.classList.toggle('active', calcMode === 'backward');
-    anchorForward.hidden = washer || calcMode !== 'forward';
-    anchorBackward.hidden = !washer && calcMode !== 'backward';
+    anchorForward.hidden = calcMode !== 'forward';
+    anchorBackward.hidden = calcMode !== 'backward';
   }
 
   function renderNotes() {
@@ -1120,7 +1116,7 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
       return;
     }
 
-    if (isWasherMode()) {
+    if (isWasherMode() && calcMode === 'backward') {
       calculateWasher(steps);
       return;
     }
@@ -1251,7 +1247,6 @@ Gusseiserne Pfanne auf mittlerer Temperatur vorheizen und leicht einfetten. Teig
   }
 
   function switchCalcMode(mode) {
-    if (isWasherMode()) mode = 'backward';
     calcMode = mode;
     state.calcMode = mode;
     currentShiftMinutes = 0;
